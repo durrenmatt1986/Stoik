@@ -35,11 +35,19 @@ _DIALOG = None
 class ShotListWidget(QtWidgets.QListWidget):
     def mousePressEvent(self, event):
         if event.button() == QtCore.Qt.LeftButton:
-            item = self.itemAt(event.pos())
+            pos = event.pos()
+            if self.viewport() is not None:
+                pos = self.viewport().mapFromGlobal(event.globalPos())
+            item = self.itemAt(pos)
             if item is not None:
                 rect = self.visualItemRect(item)
-                icon_zone = QtCore.QRect(rect.left(), rect.top(), 28, rect.height())
-                if icon_zone.contains(event.pos()):
+                icon_zone = QtCore.QRect(
+                    rect.left(),
+                    rect.top(),
+                    self.iconSize().width() + 10,
+                    rect.height(),
+                )
+                if icon_zone.contains(pos):
                     parent_dialog = self.window()
                     if hasattr(parent_dialog, '_show_color_menu'):
                         global_pos = self.viewport().mapToGlobal(rect.topLeft())
@@ -60,7 +68,6 @@ class ShotBrowserDialog(QtWidgets.QDialog):
         self._build_ui()
         self._connect_signals()
         self._populate_projects()
-        self.shot_list.installEventFilter(self)
 
     def _build_ui(self):
         main_layout = QtWidgets.QVBoxLayout(self)
@@ -294,17 +301,6 @@ class ShotBrowserDialog(QtWidgets.QDialog):
         global _DIALOG
         _DIALOG = None
         super().closeEvent(event)
-
-    def eventFilter(self, watched, event):
-        if watched is self.shot_list.viewport() and event.type() == QtCore.QEvent.MouseButtonPress:
-            pos = event.pos()
-            item = self.shot_list.itemAt(pos)
-            if item is not None:
-                icon_rect = self.shot_list.visualItemRect(item)
-                if pos.x() <= icon_rect.left() + 26:
-                    self._show_color_menu(item, self.shot_list.mapToGlobal(icon_rect.topLeft()))
-                    return True
-        return super().eventFilter(watched, event)
 
     def _create_color_icon(self, color, size=14):
         pixmap = QtGui.QPixmap(size, size)
