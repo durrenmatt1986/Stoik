@@ -1,0 +1,20 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Nuke temporary files
+*.nk~
+*.tmp
+
+# Local configuration and credentials
+settings.json
+telegram_credentials.json
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
