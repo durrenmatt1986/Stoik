@@ -312,6 +312,7 @@ class ShotBrowserDialog(QtWidgets.QDialog):
         if item is None:
             return
 
+        self.shot_list.setCurrentItem(item)
         project_name = self.project_combo.currentText()
         group_item = self.group_list.currentItem()
         if project_name == "" or group_item is None:
@@ -319,7 +320,7 @@ class ShotBrowserDialog(QtWidgets.QDialog):
 
         group_name = group_item.text()
         shot_name = item.data(QtCore.Qt.UserRole)
-        global_pos = self.shot_list.viewport().mapToGlobal(point)
+        global_pos = QtGui.QCursor.pos()
         self._open_color_menu(project_name, group_name, shot_name, item, global_pos)
 
     def _change_shot_color(self):
@@ -344,28 +345,8 @@ class ShotBrowserDialog(QtWidgets.QDialog):
 
         group_name = group_item.text()
         shot_name = item.data(QtCore.Qt.UserRole)
-
-        colors = list(SHOT_COLOR_PALETTE.keys())
-        selected_color, accepted = QtWidgets.QInputDialog.getItem(
-            self,
-            "Change Shot Color",
-            f"Select color for {shot_name}:",
-            colors,
-            0,
-            False,
-        )
-
-        if not accepted or not selected_color:
-            return
-
-        color_hex = SHOT_COLOR_PALETTE[selected_color]
-        self._on_color_selected(
-            project_name,
-            group_name,
-            shot_name,
-            item,
-            color_hex,
-        )
+        global_pos = QtGui.QCursor.pos()
+        self._open_color_menu(project_name, group_name, shot_name, item, global_pos)
 
     def _open_color_menu(self, project_name, group_name, shot_name, item, global_pos):
         menu = QtWidgets.QMenu(self)
