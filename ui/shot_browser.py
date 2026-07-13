@@ -3,9 +3,9 @@ from pathlib import Path
 import nuke
 
 try:
-    from PySide6 import QtCore, QtWidgets
+    from PySide6 import QtCore, QtGui, QtWidgets
 except ImportError:
-    from PySide2 import QtCore, QtWidgets
+    from PySide2 import QtCore, QtGui, QtWidgets
 
 from ..core.create_shot import create_shot
 from ..core.project_browser import (
@@ -13,8 +13,21 @@ from ..core.project_browser import (
     remove_shot_group_from_list,
     sync_shot_groups,
 )
-from ..utils.settings import get_project, get_projects, load_settings
+from ..utils.settings import get_project, get_projects, load_settings, save_settings
 
+
+SHOT_COLOR_PALETTE = {
+    "Red": "#d9534f",
+    "Green": "#5cb85c",
+    "Blue": "#0275d8",
+    "Yellow": "#f0ad4e",
+    "Purple": "#6f42c1",
+    "Cyan": "#20c997",
+    "Orange": "#fd7e14",
+    "Teal": "#17a2b8",
+}
+
+DEFAULT_SHOT_COLOR = "#adb5bd"
 
 _DIALOG = None
 
@@ -31,6 +44,8 @@ class ShotBrowserDialog(QtWidgets.QDialog):
         self._build_ui()
         self._connect_signals()
         self._populate_projects()
+
+        self.shot_list.viewport().installEventFilter(self)
 
     def _build_ui(self):
         main_layout = QtWidgets.QVBoxLayout(self)
@@ -96,6 +111,12 @@ class ShotBrowserDialog(QtWidgets.QDialog):
         shot_buttons_layout.addWidget(self.open_folder_button)
         shot_buttons_layout.addWidget(self.create_shot_button)
         right_layout.addLayout(shot_buttons_layout)
+
+        self.color_hint_label = QtWidgets.QLabel(
+            "Click a circle to change shot color."
+        )
+        self.color_hint_label.setStyleSheet("color: #6c757d; font-size: 11px;")
+        right_layout.addWidget(self.color_hint_label)
 
         body_layout.addWidget(right_panel, 2)
         main_layout.addLayout(body_layout)
@@ -258,6 +279,67 @@ class ShotBrowserDialog(QtWidgets.QDialog):
         _DIALOG = None
         super().closeEvent(event)
 
+    def eventFilter(self, watched, event):
+        if watched is self.shot_list.viewport() and event.type() == QtCore.QEvent.MouseButtonPress:
+            pos = event.pos()
+            item = self.shot_list.itemAt(pos)
+            if item is not None:
+                icon_rect = self.shot_list.visualItemRect(item)
+                if pos.x() <= icon_rect.left() + 26:
+                    self._show_color_menu(item, self.shot_list.mapToGlobal(icon_rect.topLeft()))
+                    return True
+        return super().eventFilter(watched, event)
+
+    def _create_color_icon(self, color, size=14):
+        pixmap = QtGui.QPixmap(size, size)
+        pixmap.fill(QtCore.Qt.transparent)
+        painter = QtGui.QPainter(pixmap)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        painter.setBrush(QtGui.QBrush(QtGui.QColor(color)))
+        painter.setPen(QtGui.QPen(QtGui.QColor("#5a5a5a"), 1))
+        painter.drawEllipse(1, 1, size - 2, size - 2)
+        painter.end()
+        return QtGui.QIcon(pixmap)
+
+    def _get_shot_color(self, project, group_name, shot_name):
+        shot_tags = project.setdefault("shot_tags", {})
+        group_tags = shot_tags.setdefault(group_name, {})
+        return group_tags.get(shot_name, DEFAULT_SHOT_COLOR)
+
+    def _set_shot_color(self, project, group_name, shot_name, color):
+        shot_tags = project.setdefault("shot_tags", {})
+        group_tags = shot_tags.setdefault(group_name, {})
+        group_tags[shot_name] = color
+        save_settings(self.settings)
+
+    def _show_color_menu(self, item, global_pos):
+        project_name = self.project_combo.currentText()
+        group_name = self.group_list.currentItem().text()
+        shot_name = item.data(QtCore.Qt.UserRole)
+
+        menu = QtWidgets.QMenu(self)
+        for color_name, color_hex in SHOT_COLOR_PALETTE.items():
+            action = QtWidgets.QAction(color_name, self)
+            action.setIcon(self._create_color_icon(color_hex, size=14))
+            action.triggered.connect(
+                lambda checked, color=color_hex: self._on_color_selected(
+                    project_name,
+                    group_name,
+                    shot_name,
+                    item,
+                    color,
+                )
+            )
+            menu.addAction(action)
+
+        menu.exec_(global_pos)
+
+    def _on_color_selected(self, project_name, group_name, shot_name, item, color):
+        project = get_project(self.settings, project_name)
+        self._set_shot_color(project, group_name, shot_name, color)
+        item.setIcon(self._create_color_icon(color))
+        self.status_label.setText(f"Color updated for {shot_name}.")
+
     def _open_group_folder(self):
         group_name = self.group_list.currentItem()
         project_name = self.project_combo.currentText()
@@ -302,7 +384,12 @@ class ShotBrowserDialog(QtWidgets.QDialog):
             key=str.casefold,
         )
 
-        self.shot_list.addItems(shots)
+        for shot_name in shots:
+            item = QtWidgets.QListWidgetItem(shot_name)
+            color = self._get_shot_color(project, group_name, shot_name)
+            item.setIcon(self._create_color_icon(color))
+            item.setData(QtCore.Qt.UserRole, shot_name)
+            self.shot_list.addItem(item)
 
         if not shots:
             self.status_label.setText("No shots found in this group.")
