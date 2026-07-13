@@ -33,20 +33,26 @@ _DIALOG = None
 
 
 class ShotListWidget(QtWidgets.QListWidget):
-    def mousePressEvent(self, event):
-        if event.button() == QtCore.Qt.LeftButton:
-            item = self.itemAt(event.pos())
-            if item is not None:
-                rect = self.visualItemRect(item)
-                icon_width = self.iconSize().width() + 14
-                if event.pos().x() <= rect.left() + icon_width:
-                    self.setCurrentItem(item)
-                    parent_dialog = self.window()
-                    if hasattr(parent_dialog, '_show_color_menu'):
-                        global_pos = self.viewport().mapToGlobal(rect.topLeft())
-                        parent_dialog._show_color_menu(item, global_pos)
-                        return
-        super().mousePressEvent(event)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.viewport().installEventFilter(self)
+
+    def eventFilter(self, watched, event):
+        if watched == self.viewport() and event.type() == QtCore.QEvent.MouseButtonPress:
+            if event.button() == QtCore.Qt.LeftButton:
+                pos = event.pos()
+                item = self.itemAt(pos)
+                if item is not None:
+                    rect = self.visualItemRect(item)
+                    icon_width = self.iconSize().width() + 14
+                    if pos.x() <= rect.left() + icon_width:
+                        self.setCurrentItem(item)
+                        parent_dialog = self.window()
+                        if hasattr(parent_dialog, '_show_color_menu'):
+                            global_pos = self.viewport().mapToGlobal(rect.topLeft())
+                            parent_dialog._show_color_menu(item, global_pos)
+                            return True
+        return super().eventFilter(watched, event)
 
 
 class ShotBrowserDialog(QtWidgets.QDialog):
