@@ -32,6 +32,22 @@ DEFAULT_SHOT_COLOR = "#adb5bd"
 _DIALOG = None
 
 
+class ShotListWidget(QtWidgets.QListWidget):
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton:
+            item = self.itemAt(event.pos())
+            if item is not None:
+                rect = self.visualItemRect(item)
+                icon_zone = QtCore.QRect(rect.left(), rect.top(), 28, rect.height())
+                if icon_zone.contains(event.pos()):
+                    parent_dialog = self.window()
+                    if hasattr(parent_dialog, '_show_color_menu'):
+                        global_pos = self.viewport().mapToGlobal(rect.topLeft())
+                        parent_dialog._show_color_menu(item, global_pos)
+                        return
+        super().mousePressEvent(event)
+
+
 class ShotBrowserDialog(QtWidgets.QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -44,8 +60,7 @@ class ShotBrowserDialog(QtWidgets.QDialog):
         self._build_ui()
         self._connect_signals()
         self._populate_projects()
-
-        self.shot_list.viewport().installEventFilter(self)
+        self.shot_list.installEventFilter(self)
 
     def _build_ui(self):
         main_layout = QtWidgets.QVBoxLayout(self)
@@ -102,7 +117,8 @@ class ShotBrowserDialog(QtWidgets.QDialog):
         right_title.setStyleSheet("font-weight: bold;")
         right_layout.addWidget(right_title)
 
-        self.shot_list = QtWidgets.QListWidget()
+        self.shot_list = ShotListWidget()
+        self.shot_list.setIconSize(QtCore.QSize(18, 18))
         right_layout.addWidget(self.shot_list, 1)
 
         shot_buttons_layout = QtWidgets.QHBoxLayout()
