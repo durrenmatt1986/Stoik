@@ -35,19 +35,12 @@ _DIALOG = None
 class ShotListWidget(QtWidgets.QListWidget):
     def mousePressEvent(self, event):
         if event.button() == QtCore.Qt.LeftButton:
-            pos = event.pos()
-            if self.viewport() is not None:
-                pos = self.viewport().mapFromGlobal(event.globalPos())
-            item = self.itemAt(pos)
+            item = self.itemAt(event.pos())
             if item is not None:
                 rect = self.visualItemRect(item)
-                icon_zone = QtCore.QRect(
-                    rect.left(),
-                    rect.top(),
-                    self.iconSize().width() + 10,
-                    rect.height(),
-                )
-                if icon_zone.contains(pos):
+                icon_width = self.iconSize().width() + 14
+                if event.pos().x() <= rect.left() + icon_width:
+                    self.setCurrentItem(item)
                     parent_dialog = self.window()
                     if hasattr(parent_dialog, '_show_color_menu'):
                         global_pos = self.viewport().mapToGlobal(rect.topLeft())
