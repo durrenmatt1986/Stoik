@@ -32,29 +32,6 @@ DEFAULT_SHOT_COLOR = "#adb5bd"
 _DIALOG = None
 
 
-class ShotListWidget(QtWidgets.QListWidget):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.viewport().installEventFilter(self)
-
-    def eventFilter(self, watched, event):
-        if watched == self.viewport() and event.type() == QtCore.QEvent.MouseButtonPress:
-            if event.button() == QtCore.Qt.LeftButton:
-                pos = event.pos()
-                item = self.itemAt(pos)
-                if item is not None:
-                    rect = self.visualItemRect(item)
-                    icon_width = self.iconSize().width() + 14
-                    if pos.x() <= rect.left() + icon_width:
-                        self.setCurrentItem(item)
-                        parent_dialog = self.window()
-                        if hasattr(parent_dialog, '_show_color_menu'):
-                            global_pos = self.viewport().mapToGlobal(rect.topLeft())
-                            parent_dialog._show_color_menu(item, global_pos)
-                            return True
-        return super().eventFilter(watched, event)
-
-
 class ShotBrowserDialog(QtWidgets.QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -123,19 +100,25 @@ class ShotBrowserDialog(QtWidgets.QDialog):
         right_title.setStyleSheet("font-weight: bold;")
         right_layout.addWidget(right_title)
 
-        self.shot_list = ShotListWidget()
+        self.shot_list = QtWidgets.QListWidget()
         self.shot_list.setIconSize(QtCore.QSize(18, 18))
+        self.shot_list.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.shot_list.customContextMenuRequested.connect(
+            self._on_shot_list_context_menu
+        )
         right_layout.addWidget(self.shot_list, 1)
 
         shot_buttons_layout = QtWidgets.QHBoxLayout()
         self.create_shot_button = QtWidgets.QPushButton("Create Shot")
         self.open_folder_button = QtWidgets.QPushButton("Open Group Folder")
+        self.change_color_button = QtWidgets.QPushButton("Change Color")
         shot_buttons_layout.addWidget(self.open_folder_button)
         shot_buttons_layout.addWidget(self.create_shot_button)
+        shot_buttons_layout.addWidget(self.change_color_button)
         right_layout.addLayout(shot_buttons_layout)
 
         self.color_hint_label = QtWidgets.QLabel(
-            "Click a circle to change shot color."
+            "Right-click a shot row or select it and click Change Color."
         )
         self.color_hint_label.setStyleSheet("color: #6c757d; font-size: 11px;")
         right_layout.addWidget(self.color_hint_label)
@@ -154,6 +137,7 @@ class ShotBrowserDialog(QtWidgets.QDialog):
         self.remove_group_button.clicked.connect(self._remove_group)
         self.create_shot_button.clicked.connect(self._create_shot)
         self.open_folder_button.clicked.connect(self._open_group_folder)
+        self.change_color_button.clicked.connect(self._change_shot_color)
 
     def _populate_projects(self):
         projects = get_projects(self.settings)
@@ -323,11 +307,48 @@ class ShotBrowserDialog(QtWidgets.QDialog):
         group_tags[shot_name] = color
         save_settings(self.settings)
 
-    def _show_color_menu(self, item, global_pos):
-        project_name = self.project_combo.currentText()
-        group_name = self.group_list.currentItem().text()
-        shot_name = item.data(QtCore.Qt.UserRole)
+    def _on_shot_list_context_menu(self, point):
+        item = self.shot_list.itemAt(point)
+        if item is None:
+            return
 
+        project_name = self.project_combo.currentText()
+        group_item = self.group_list.currentItem()
+        if project_name == "" or group_item is None:
+            return
+
+        group_name = group_item.text()
+        shot_name = item.data(QtCore.Qt.UserRole)
+        global_pos = self.shot_list.viewport().mapToGlobal(point)
+        self._open_color_menu(project_name, group_name, shot_name, item, global_pos)
+
+    def _change_shot_color(self):
+        item = self.shot_list.currentItem()
+        if item is None:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Stoik",
+                "Select a shot first to change its color.",
+            )
+            return
+
+        project_name = self.project_combo.currentText()
+        group_item = self.group_list.currentItem()
+        if not project_name or group_item is None:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Stoik",
+                "Select a shot group first.",
+            )
+            return
+
+        group_name = group_item.text()
+        shot_name = item.data(QtCore.Qt.UserRole)
+        rect = self.shot_list.visualItemRect(item)
+        global_pos = self.shot_list.viewport().mapToGlobal(rect.topLeft())
+        self._open_color_menu(project_name, group_name, shot_name, item, global_pos)
+
+    def _open_color_menu(self, project_name, group_name, shot_name, item, global_pos):
         menu = QtWidgets.QMenu(self)
         for color_name, color_hex in SHOT_COLOR_PALETTE.items():
             action = QtWidgets.QAction(color_name, self)
