@@ -102,10 +102,7 @@ class ShotBrowserDialog(QtWidgets.QDialog):
 
         self.shot_list = QtWidgets.QListWidget()
         self.shot_list.setIconSize(QtCore.QSize(18, 18))
-        self.shot_list.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.shot_list.customContextMenuRequested.connect(
-            self._on_shot_list_context_menu
-        )
+        self.shot_list.viewport().installEventFilter(self)
         right_layout.addWidget(self.shot_list, 1)
 
         shot_buttons_layout = QtWidgets.QHBoxLayout()
@@ -307,21 +304,15 @@ class ShotBrowserDialog(QtWidgets.QDialog):
         group_tags[shot_name] = color
         save_settings(self.settings)
 
-    def _on_shot_list_context_menu(self, point):
-        item = self.shot_list.itemAt(point)
-        if item is None:
-            return
-
-        self.shot_list.setCurrentItem(item)
-        project_name = self.project_combo.currentText()
-        group_item = self.group_list.currentItem()
-        if project_name == "" or group_item is None:
-            return
-
-        group_name = group_item.text()
-        shot_name = item.data(QtCore.Qt.UserRole)
-        global_pos = QtGui.QCursor.pos()
-        self._open_color_menu(project_name, group_name, shot_name, item, global_pos)
+    def eventFilter(self, watched, event):
+        if watched == self.shot_list.viewport() and event.type() == QtCore.QEvent.MouseButtonPress:
+            if event.button() == QtCore.Qt.RightButton:
+                item = self.shot_list.itemAt(event.pos())
+                if item is not None:
+                    self.shot_list.setCurrentItem(item)
+                    self._change_shot_color()
+                    return True
+        return super().eventFilter(watched, event)
 
     def _change_shot_color(self):
         item = self.shot_list.currentItem()
